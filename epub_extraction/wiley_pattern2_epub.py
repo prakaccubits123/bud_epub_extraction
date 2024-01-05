@@ -3,7 +3,7 @@ from ebooklib import epub
 from bs4 import BeautifulSoup
 import os
 from PIL import Image
-# from pix2tex.cli import LatexOCR
+from pix2tex.cli import LatexOCR
 from bs4 import BeautifulSoup, NavigableString
 from utils import (
     timeit,
