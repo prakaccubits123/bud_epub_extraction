@@ -1,27 +1,20 @@
-import ebooklib
-from ebooklib import epub
 from bs4 import BeautifulSoup
-import os
-from PIL import Image
 from bs4 import BeautifulSoup, NavigableString
 from utils import (
     timeit,
     mongo_init,
     parse_table,
-    get_all_books_names,
-    get_s3,
     get_file_object_aws,
     get_toc_from_ncx,
     get_toc_from_xhtml,
     generate_unique_id,
-    latext_to_text_to_speech,
 )
 
 
 # change folder and bucket name as required.
 bucket_name = "bud-datalake"
 # folder_name = "Books/Oct29-1/"
-folder_name = 'Books/Oct29-1/'
+folder_name = "Books/Oct29-1/"
 s3_base_url = "https://bud-datalake.s3.ap-southeast-1.amazonaws.com"
 
 
@@ -34,39 +27,12 @@ extracted_books = db.extracted_books
 publisher_collection = db.publishers
 
 
-def download_aws_image(key, book):
-    try:
-        book_folder = os.path.join(folder_name, book)
-        os.makedirs(book_folder, exist_ok=True)
-        local_path = os.path.join(book_folder, os.path.basename(key))
-        s3 = get_s3()
-        s3.download_file(bucket_name, key, local_path)
-        return os.path.abspath(local_path)
-    except Exception as e:
-        print(e)
-        return None
-
-
-def download_epub_from_s3(bookname, s3_key):
-    try:
-        local_path = os.path.abspath(
-            os.path.join(folder_name, f"{bookname}.epub"))
-        os.makedirs(folder_name, exist_ok=True)
-        s3 = get_s3()
-        s3.download_file(bucket_name, s3_key, local_path)
-        return local_path
-    except Exception as e:
-        print(e)
-        return None
-
-
 @timeit
 def parse_html_to_json(html_content, book, filename):
     # html_content = get_file_object_aws(book, filename)
     soup = BeautifulSoup(html_content, "html.parser")
     # h_tag = get_heading_tags(soup, h_tag=[])
-    section_data = extract_data(
-        soup.find("body"), book, filename, section_data=[])
+    section_data = extract_data(soup.find("body"), book, filename, section_data=[])
     return section_data
 
 
@@ -110,16 +76,13 @@ def extract_data(elem, book, filename, section_data=[]):
 
                 parent = child.find_parent("div", class_="image_text")
                 if parent:
-                    figparent = parent.find_parent(
-                        'div', class_="illustype_image_text")
+                    figparent = parent.find_parent("div", class_="illustype_image_text")
                     if figparent:
-                        caption_parent = figparent.find(
-                            'div', class_="caption")
+                        caption_parent = figparent.find("div", class_="caption")
                         if caption_parent:
-                            figcap = caption_parent.find('p')
+                            figcap = caption_parent.find("p")
                             if figcap:
-                                img['caption'] = figcap.get_text(
-                                    strip=True)
+                                img["caption"] = figcap.get_text(strip=True)
                                 print("this is image_caption", img["caption"])
 
                 if section_data:
@@ -146,17 +109,16 @@ def extract_data(elem, book, filename, section_data=[]):
                     if tableparent:
                         tabcaps = tableparent.find_all("p")
                         if tabcaps:
-                            caption_text = " ".join(tab_cap.get_text(
-                                strip=True) for tab_cap in tabcaps)
+                            caption_text = " ".join(
+                                tab_cap.get_text(strip=True) for tab_cap in tabcaps
+                            )
                             print("this is table caption", caption_text)
 
                 table_id = generate_unique_id()
                 table_data = parse_table(child)
-                table = {"id": table_id, "data": table_data,
-                         "caption": caption_text}
+                table = {"id": table_id, "data": table_data, "caption": caption_text}
                 if section_data:
-                    section_data[-1]["content"] += "{{table:" + \
-                        table["id"] + "}} "
+                    section_data[-1]["content"] += "{{table:" + table["id"] + "}} "
                     if "tables" in section_data[-1]:
                         section_data[-1]["tables"].append(table)
                         # section_data[-1]['tables'] = [table]
@@ -217,8 +179,7 @@ def get_book_data(book):
         error = ""
         try:
             # get table of content
-            toc_content = get_file_object_aws(
-                book, "toc.ncx", folder_name, bucket_name)
+            toc_content = get_file_object_aws(book, "toc.ncx", folder_name, bucket_name)
             if toc_content:
                 toc = get_toc_from_ncx(toc_content)
             else:
@@ -269,8 +230,7 @@ def get_book_data(book):
                     print(filename)
                     if html_content:
                         try:
-                            json_data = parse_html_to_json(
-                                html_content, book, filename)
+                            json_data = parse_html_to_json(html_content, book, filename)
                             oct_chapters.insert_one(
                                 {
                                     "book": book,
@@ -281,8 +241,10 @@ def get_book_data(book):
                             )
                             order_counter += 1
                         except Exception as e:
-                            print(f"Error while parsing {
-                                  filename} html >> {e}")
+                            print(
+                                f"Error while parsing {
+                                  filename} html >> {e}"
+                            )
                             files_with_error.insert_one(
                                 {"book": book, "filename": filename, "error": e}
                             )
@@ -302,31 +264,6 @@ def get_book_data(book):
 
     book_data = {"book": book, "extraction": "completed"}
     extracted_books.insert_one(book_data)
-
-
-def find_figure_tag_in_html(html_content):
-    soup = BeautifulSoup(html_content, "html.parser")
-    div_with_figure_class = soup.find_all("div", class_="figure")
-    return div_with_figure_class
-
-
-def get_html_from_epub(epub_path):
-    book = epub.read_epub(epub_path)
-    # Iterate through items in the EPUB book
-    for item in book.get_items():
-        # Check if the item is of type 'text'
-        if item.get_type() == ebooklib.ITEM_DOCUMENT:
-            # Extract the HTML content
-            html_content = item.get_content().decode("utf-8", "ignore")
-
-            # Find figure tags in the HTML content
-            figure_tags = find_figure_tag_in_html(html_content)
-
-            # If figure tags are found, return the first one and break the loop
-            if figure_tags:
-                return figure_tags[0]
-    # Return None if no figure tags are found
-    return None
 
 
 # taking books from publishers collection and checking if it has pattern (figure tag inside any html file)

@@ -1,15 +1,20 @@
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
+import os
+from PIL import Image
 from bs4 import BeautifulSoup, NavigableString
 from utils import (
     timeit,
     mongo_init,
     parse_table,
+    get_all_books_names,
+    get_s3,
     get_file_object_aws,
     get_toc_from_ncx,
     get_toc_from_xhtml,
     generate_unique_id,
+    latext_to_text_to_speech,
 )
 
 
@@ -20,7 +25,7 @@ folder_name = "Books/Oct29-1/"
 s3_base_url = "https://bud-datalake.s3.ap-southeast-1.amazonaws.com"
 
 
-db = mongo_init("epub_amacom")
+db = mongo_init("epub_routeledge")
 db2 = mongo_init("epub_testing")
 oct_toc = db.oct_toc
 oct_no_toc = db2.oct_no_toc
@@ -76,34 +81,22 @@ def extract_data(elem, book, filename, section_data=[]):
                 img["id"] = generate_unique_id()
                 aws_path = f"{s3_base_url}/{folder_name}{book}/OEBPS/"
                 img["url"] = aws_path + child["src"]
-
-                parent = child.find_parent("p", class_=["figimage", "fig"])
-                parent2 = child.find_parent("div", class_="mediaobject")
-
+                parent = child.find_parent("div", class_="fig")
+                parent2 = child.find_parent("figure")
                 if parent:
-                    next_sibling = parent.find_next_sibling()
-                    if next_sibling:
-                        fig_next_sib_class = next_sibling.get("class", [""])[0]
-                        if (
-                            fig_next_sib_class == "figcaption"
-                            or fig_next_sib_class == "caption"
-                        ):
-                            img["caption"] = next_sibling.get_text(strip=True)
-                            print("this is image caption", img["caption"])
-
+                    figcap = parent.find("p", class_="image_caption")
+                    if figcap:
+                        img["caption"] = figcap.get_text(strip=True)
+                        print("this is image_caption", img["caption"])
                 elif parent2:
-                    print("hello")
-                    figparent = parent2.find_parent("div", class_="figure-contents")
-
-                    if figparent:
-                        print("hello3")
-                        divparent = figparent.find_parent("div", class_="figure")
-                        if divparent:
-                            print("hello4")
-                            figcaption = divparent.find("p", class_="title")
-                            if figcaption:
-                                print("hello5")
-                                img["caption"] = figcaption.get_text(strip=True)
+                    print("parent2")
+                    cap_parent = parent2.find("figcaption")
+                    if cap_parent:
+                        figcap = cap_parent.find("p")
+                        print("yes here")
+                        if figcap:
+                            img["caption"] = figcap.get_text(strip=True)
+                            print("this is image caption", img["caption"])
 
                 if section_data:
                     section_data[-1]["content"] += "{{figure:" + img["id"] + "}} "
@@ -123,13 +116,15 @@ def extract_data(elem, book, filename, section_data=[]):
             elif child.name == "table":
                 print("table here")
                 caption_text = ""
-                parent = child.find_parent("div", class_="table-contents")
-                # parent = child.find_parent("div", class_="table-contents")
-                if parent:
-                    previous_sibling = parent.find_previous_sibling()
+                tabcap = child.find("caption")
+                if tabcap:
+                    caption_text = tabcap.get_text(strip=True)
+                    print("this is table caption", caption_text)
+                else:
+                    previous_sibling = child.find_previous_sibling()
                     if previous_sibling:
                         tab_prev_sib_class = previous_sibling.get("class", [""])[0]
-                        if tab_prev_sib_class == "title":
+                        if tab_prev_sib_class == "table_caption":
                             caption_text = previous_sibling.get_text(strip=True)
                             print("this is table caption", caption_text)
 
@@ -260,7 +255,10 @@ def get_book_data(book):
                             )
                             order_counter += 1
                         except Exception as e:
-                            print(f"Error while parsing {filename} html >> {e}")
+                            print(
+                                f"Error while parsing {
+                                  filename} html >> {e}"
+                            )
                             files_with_error.insert_one(
                                 {"book": book, "filename": filename, "error": e}
                             )
@@ -283,14 +281,15 @@ def get_book_data(book):
 
 
 # taking books from publishers collection and checking if it has pattern (figure tag inside any html file)
-# extracted = []
+extracted = []
 not_s3 = []
-# booknames = []
+s3 = []
+booknames = []
 for book in publisher_collection.find():
     if (
         "publishers" in book
         and book["publishers"]
-        and book["publishers"][0].startswith("AMACOM")
+        and book["publishers"][0].startswith("Routledge")
     ):
         if "s3_key" in book:
             s3_key = book["s3_key"]
@@ -304,8 +303,8 @@ for book in publisher_collection.find():
         else:
             not_s3.append(book)
 
-print("not se", len(not_s3))
-# f = open("f.txt", 'w')
-# f.write(str(booknames))
 
-# get_book_data("Accounting for the Numberphobic (9780814434321)")
+# get_book_data('The Internet of People Things and Services (9781351725071)')
+# # get_book_data('9781422131077')
+# # # # get_book_data("Statistical and Machine Learning Approaches for Network Analysis (9781118346983)")
+# # # get_book_data("The One-Page Project Manager for IT Projects (9780470275887)")

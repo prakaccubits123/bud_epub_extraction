@@ -1,20 +1,13 @@
-import ebooklib
-from ebooklib import epub
 from bs4 import BeautifulSoup
-import os
-from PIL import Image
 from bs4 import BeautifulSoup, NavigableString
 from utils import (
     timeit,
     mongo_init,
     parse_table,
-    get_all_books_names,
-    get_s3,
     get_file_object_aws,
     get_toc_from_ncx,
     get_toc_from_xhtml,
     generate_unique_id,
-    latext_to_text_to_speech,
 )
 
 
@@ -33,31 +26,6 @@ oct_chapters = db2.oct_chapters
 files_with_error = db.files_with_error
 extracted_books = db.extracted_books
 publisher_collection = db.publishers
-
-
-def download_aws_image(key, book):
-    try:
-        book_folder = os.path.join(folder_name, book)
-        os.makedirs(book_folder, exist_ok=True)
-        local_path = os.path.join(book_folder, os.path.basename(key))
-        s3 = get_s3()
-        s3.download_file(bucket_name, key, local_path)
-        return os.path.abspath(local_path)
-    except Exception as e:
-        print(e)
-        return None
-
-
-def download_epub_from_s3(bookname, s3_key):
-    try:
-        local_path = os.path.abspath(os.path.join(folder_name, f"{bookname}.epub"))
-        os.makedirs(folder_name, exist_ok=True)
-        s3 = get_s3()
-        s3.download_file(bucket_name, s3_key, local_path)
-        return local_path
-    except Exception as e:
-        print(e)
-        return None
 
 
 @timeit
