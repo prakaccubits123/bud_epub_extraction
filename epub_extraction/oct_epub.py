@@ -111,7 +111,7 @@
 #       Get file object from aws s3 bucket
 
 #       Args:
-#           book (str): The name of the book. 
+#           book (str): The name of the book.
 #           filename (str): The name of the file.
 
 #       Returns:
@@ -230,7 +230,7 @@
 #       Get table of content from ncx file
 
 #       Args:
-#           toc_contents (str): The contents of the toc file. 
+#           toc_contents (str): The contents of the toc file.
 
 #       Returns:
 #           list: A list of dictionaries representing the table of content.
@@ -532,7 +532,7 @@
 #                     temp['equations'] = [eqaution_data]
 
 #              # 100%  equation image
-           
+
 #             elif child.name == 'div' and ('equationNumbered' in child.get('class', []) or 'informalEquation' in child.get('class', [])):
 #                 equation_image = child.find('img')
 #                 equation_Id = uuid.uuid4().hex
