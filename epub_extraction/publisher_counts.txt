@@ -1,0 +1,105 @@
+A Book Apart: 9
+A K Peters/CRC Press: 13
+AMA Self-Study: 6
+AMACOM: 99
+Aaron Schlesinger: 1
+Academic Press: 59
+Addison-Wesley Professional: 194
+Adobe Press: 63
+Adobe Systems: 1
+Alpha: 7
+Apress: 564
+Ascent Audio: 210
+Assemble You: 26
+Association for Talent Development: 76
+Auerbach Publications: 45
+BCS Learning & Development Limited: 12
+Berrett-Koehler Publishers: 134
+Bibliomotion: 1
+Big Nerd Ranch Guides: 2
+Bloomberg Press: 13
+British Informatics Society Limited: 3
+Business Expert Press: 181
+Butterworth-Heinemann: 17
+CRC Press: 203
+Capstone: 16
+Career Press: 29
+Center for Creative Leadership: 68
+Center for Cryptologic History, NSA: 6
+Chandos Publishing: 17
+Chapman and Hall/CRC: 47
+Cisco Press: 83
+DK Publishing: 2
+Data Science Salon: 6
+De Gruyter: 27
+Digital Press: 9
+EC-Council: 7
+EPFL Press: 1
+Elsevier: 22
+Expanding Security: 2
+FT Publishing International: 14
+Focal Press: 68
+For Dummies: 177
+Gulf Professional Publishing: 5
+HRD Press: 20
+HarperCollins Publishers: 14
+Harvard Business Review: 201
+HighBridge: 22
+IBM Press: 220
+IT Governance Publishing: 48
+IT Revolution Press: 6
+Infinite Skills: 140
+Jenny Stanford Publishing: 5
+Jones & Bartlett Learning: 34
+Jossey-Bass: 64
+Kohler Music Press: 1
+Laurence King: 7
+Libros de Cabecera: 1
+MIT Sloan Management Review: 120
+Make: Community: 20
+Manning Publications: 254
+McGraw Hill Computing: 283
+Microsoft Press: 131
+Morgan Kaufmann: 91
+New Riders: 49
+Newnes: 47
+No Starch Press: 68
+North Holland: 6
+O'Reilly Media, Inc.: 1249
+Oracle Press: 2
+Packt Publishing: 1048
+Peachpit Press: 964
+Pfeiffer: 11
+Pragmatic AI Solutions: 100
+Prentice Hall: 2
+Productivity Press: 49
+Project Management Institute: 13
+Psychology Press: 4
+Quarry Books: 24
+Que: 121
+RIBA Publishing: 11
+Recorded Books: 15
+Rockport Publishers: 32
+Rocky Nook: 44
+Routledge: 239
+SAS Institute: 49
+Salesforce.com: 2
+Sams: 99
+SitePoint: 14
+Skylines Academy, LLC: 2
+Sybex: 89
+Syngress: 57
+TSO: 1
+TSO (The Stationery Office): 2
+Take Control Books: 13
+Tantor Media, Inc.: 62
+Taylor & Francis: 2
+VMware Press: 4
+Visual: 26
+Walter Foster: 26
+Wiley: 949
+William Andrew: 5
+Woodhead Publishing: 25
+Wrightbooks: 8
+Wrox: 61
+friends of ED: 1
