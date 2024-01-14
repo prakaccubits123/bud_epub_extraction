@@ -14,7 +14,6 @@ from utils import (
     get_toc_from_ncx,
     get_toc_from_xhtml,
     generate_unique_id,
-    latext_to_text_to_speech,
 )
 
 latex_ocr = LatexOCR()
@@ -27,9 +26,10 @@ s3_base_url = "https://bud-datalake.s3.ap-southeast-1.amazonaws.com"
 
 
 db = mongo_init("epub_testing")
-oct_toc = db.oct_toc
+db2 = mongo_init("epub_pearson")
+oct_toc = db2.oct_toc
 oct_no_toc = db.oct_no_toc
-oct_chapters = db.oct_chapters
+oct_chapters = db2.oct_chapters
 files_with_error = db.files_with_error
 extracted_books = db.extracted_books
 publisher_collection = db.publishers
@@ -61,12 +61,16 @@ def download_epub_from_s3(bookname, s3_key):
 
 
 @timeit
-def parse_html_to_json(html_content, book, filename):
+def parse_html_to_json(html_content, book, filename, pattern):
     # html_content = get_file_object_aws(book, filename)
     soup = BeautifulSoup(html_content, "html.parser")
     # h_tag = get_heading_tags(soup, h_tag=[])
-    section_data = extract_data(soup.find("body"), book, filename, section_data=[])
-    return section_data
+    if pattern=="figure_tag":
+        print("hello")
+        section_data = extract_data(soup.find("body"), book, filename, section_data=[])
+        return section_data
+    elif pattern=="p_image":
+        print("hello")
 
 
 def extract_data(elem, book, filename, section_data=[]):
@@ -159,55 +163,6 @@ def extract_data(elem, book, filename, section_data=[]):
                     temp["code_snippet"] = []
                     temp["equations"] = []
 
-            elif child.name == "div" and (
-                "equationNumbered" in child.get("class", [])
-                or "informalEquation" in child.get("class", [])
-            ):
-                equation_image = child.find("img")
-                equation_Id = generate_unique_id()
-                if equation_image:
-                    aws_path = f"{s3_base_url}/{folder_name}{book}/OEBPS/"
-                    img_url = aws_path + equation_image["src"]
-                    print("This is equation image")
-                    img_key = img_url.replace(s3_base_url + "/", "")
-                    equation_image_path = download_aws_image(img_key, book)
-                    if not equation_image_path:
-                        continue
-                    try:
-                        img = Image.open(equation_image_path)
-                    except Exception as e:
-                        print("from image equation", e)
-                        continue
-                    try:
-                        latex_text = latex_ocr(img)
-                    except Exception as e:
-                        print("error while extracting latex code from image", e)
-                        continue
-                    text_to_speech = latext_to_text_to_speech(latex_text)
-                    eqaution_data = {
-                        "id": equation_Id,
-                        "text": latex_text,
-                        "text_to_speech": text_to_speech,
-                    }
-                    print(equation_image_path)
-                    print("this is equation image")
-                    os.remove(equation_image_path)
-                else:
-                    continue
-                if section_data:
-                    section_data[-1]["content"] += "{{equation:" + equation_Id + "}} "
-                    if "equations" in section_data[-1]:
-                        section_data[-1]["equations"].append(eqaution_data)
-                    else:
-                        section_data[-1]["equations"] = [eqaution_data]
-                else:
-                    temp["title"] = ""
-                    temp["content"] = "{{equation:" + equation_Id + "}} "
-                    temp["tables"] = []
-                    temp["figures"] = []
-                    temp["code_snippet"] = []
-                    temp["equations"] = [eqaution_data]
-
             # code oreilly publication
             elif child.name == "pre":
                 print("code here")
@@ -245,7 +200,7 @@ def extract_data(elem, book, filename, section_data=[]):
 
 
 @timeit
-def get_book_data(book):
+def get_book_data(book, pattern):
     print("Book Name >>> ", book)
     toc = []
     # check if book exists in db toc collection
@@ -307,7 +262,7 @@ def get_book_data(book):
 
                     if html_content:
                         try:
-                            json_data = parse_html_to_json(html_content, book, filename)
+                            json_data = parse_html_to_json(html_content, book, filename, pattern)
                             oct_chapters.insert_one(
                                 {
                                     "book": book,
@@ -341,68 +296,82 @@ def get_book_data(book):
 
 
 def find_figure_tag_in_html(html_content):
-    soup = BeautifulSoup(html_content, "html.parser")
-    figure_tags = soup.find_all("figure")
+    soup = BeautifulSoup(html_content, 'html.parser')
+    figure_tags = soup.find_all('div', class_="image")
     return figure_tags
 
+def find_image_paragraph_in_html(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    image_paragraphs = soup.find_all('p', class_='image')
+    return image_paragraphs
 
 def get_html_from_epub(epub_path):
     book = epub.read_epub(epub_path)
-    # Iterate through items in the EPUB book
-    for item in book.get_items():
-        # Check if the item is of type 'text'
-        if item.get_type() == ebooklib.ITEM_DOCUMENT:
-            # Extract the HTML content
-            html_content = item.get_content().decode("utf-8", "ignore")
+    # figure_found = False
 
-            # Find figure tags in the HTML content
+    for item in book.get_items():
+        if item.get_type() == ebooklib.ITEM_DOCUMENT:
+            html_content = item.get_content().decode("utf-8", "ignore")
             figure_tags = find_figure_tag_in_html(html_content)
 
-            # If figure tags are found, return the first one and break the loop
             if figure_tags:
-                return figure_tags[0]
-    # Return None if no figure tags are found
+                # figure_found = True
+                return "figure_tag"
+
+    # # If figure tag is not found in any HTML file, check for p element with class name "image"
+    # if not figure_found:
+    #     for item in book.get_items():
+    #         if item.get_type() == ebooklib.ITEM_DOCUMENT:
+    #             html_content = item.get_content().decode("utf-8", "ignore")
+    #             image_paragraphs = find_image_paragraph_in_html(html_content)
+
+    #             if image_paragraphs:
+    #                 return "p_image"
+
+    # Return None if neither figure tags nor p element with class name "image" is found
     return None
 
 
-pearson_figure_tag=[]
-pearson_without_figure=[]
-extracted=[]
-for book in publisher_collection.find():
-    if (
-        "publishers" in book
-        and book["publishers"]
-        and book["publishers"][0].startswith("Pearson")
-    ):
-        if "s3_key" in book:
-            s3_key = book["s3_key"]
-            bookname = book["s3_key"].split("/")[-2]
-            already_extracted = extracted_books.find_one({"book": bookname})
-            if not already_extracted:
-                print("e")
-                epub_path = download_epub_from_s3(bookname, s3_key)
-                if not epub_path:
-                    continue
-                figure_tag = get_html_from_epub(epub_path)
-                if figure_tag:
-                    if os.path.exists(epub_path):
-                        os.remove(epub_path)
-                    print("figure tag found")
-                    pearson_figure_tag.append(s3_key)
-                    # get_book_data(bookname)
-                else:
-                    print("no figure tag")
-                    pearson_without_figure.append(s3_key)
-                    if os.path.exists(epub_path):
-                        os.remove(epub_path)
-            else:
-                print(f"this {bookname}already extracted")
-                extracted.append(bookname)
+# pearson_div_image_tag=[]
+# pearson_div_without_image_figure=[]
+# extracted=[]
+# for book in publisher_collection.find():
+#     if (
+#         "publishers" in book
+#         and book["publishers"]
+#         and book["publishers"][0].startswith("Pearson")
+#     ):
+#         if "s3_key" in book:
+#             s3_key = book["s3_key"]
+#             bookname = book["s3_key"].split("/")[-2]
+#             already_extracted = extracted_books.find_one({"book": bookname})
+#             if not already_extracted:
+#                 epub_path = download_epub_from_s3(bookname, s3_key)
+#                 if not epub_path:
+#                     continue
+#                 pattern = get_html_from_epub(epub_path)
+#                 if pattern and pattern=="figure_tag":
+#                     pearson_div_image_tag.append(s3_key)
+#                     if os.path.exists(epub_path):
+#                         os.remove(epub_path)
+#                     print("figure tag found")
+#                     # get_book_data(bookname, pattern)
+#                 else:
+#                     print("no pattern found")
+#                     pearson_div_without_image_figure.append(s3_key)
+#                     if os.path.exists(epub_path):
+#                         os.remove(epub_path)
+#             else:
+#                 print(f"this {bookname}already extracted")
+#                 extracted.append(bookname)
 
-print("total extracted books", len(extracted))
-print("total pearson books with figure pattern",len(pearson_figure_tag))
-f=open("pearson_with_figure_tag.txt",'w')
-f.write(str(pearson_figure_tag))
-print("total pearson books without figure tag",len(pearson_without_figure))
-f=open("pearson_without_figure_tag.txt",'w')
-f.write(str(pearson_without_figure))
+# print("total extracted books", len(extracted))
+# print("total pearson books with figure pattern",len(pearson_div_image_tag))
+# f=open("pearson_div_with_image_tag.txt",'w')
+# f.write(str(pearson_div_image_tag))
+# print("total pearson books without figure tag",len(pearson_div_without_image_figure))
+# f=open("pearson_div_without_image_tag.txt",'w')
+# f.write(str(pearson_div_without_image_figure))
+
+# pattern="figure_tag"
+# get_book_data("Do One Thing (9781292338231)",pattern)
