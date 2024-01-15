@@ -1,36 +1,33 @@
-import ebooklib
-from ebooklib import epub
 from bs4 import BeautifulSoup
 import os
 from PIL import Image
 from pix2tex.cli import LatexOCR
+from extract_epub_table import process_book_page
 from bs4 import BeautifulSoup, NavigableString
 from utils import (
     timeit,
     mongo_init,
     parse_table,
-    get_all_books_names,
     get_s3,
     get_file_object_aws,
     get_toc_from_ncx,
     get_toc_from_xhtml,
     generate_unique_id,
-    latext_to_text_to_speech,
 )
 
 latex_ocr = LatexOCR()
 
 # change folder and bucket name as required.
 bucket_name = "bud-datalake"
-# folder_name = "Books/Oct29-1/"
-folder_name = "Books/Oct29-Wiley/"
+folder_name = "Books/Oct29-1/"
 s3_base_url = "https://bud-datalake.s3.ap-southeast-1.amazonaws.com"
 
 
 db = mongo_init("epub_testing")
-oct_toc = db.oct_toc
+db2 = mongo_init("epub_auerbach")
+oct_toc = db2.oct_toc
 oct_no_toc = db.oct_no_toc
-oct_chapters = db.oct_chapters
+oct_chapters = db2.oct_chapters
 files_with_error = db.files_with_error
 extracted_books = db.extracted_books
 publisher_collection = db.publishers
@@ -39,7 +36,8 @@ publisher_collection = db.publishers
 def download_aws_image(key, book):
     try:
         book_folder = os.path.join(folder_name, book)
-        os.makedirs(book_folder, exist_ok=True)
+        if not os.path.exists(book_folder):
+            os.makedirs(book_folder)
         local_path = os.path.join(book_folder, os.path.basename(key))
         s3 = get_s3()
         s3.download_file(bucket_name, key, local_path)
@@ -59,7 +57,6 @@ def download_epub_from_s3(bookname, s3_key):
     except Exception as e:
         print(e)
         return None
-
 
 @timeit
 def parse_html_to_json(html_content, book, filename):
@@ -107,15 +104,26 @@ def extract_data(elem, book, filename, section_data=[]):
                 img["id"] = generate_unique_id()
                 aws_path = f"{s3_base_url}/{folder_name}{book}/OEBPS/"
                 img["url"] = aws_path + child["src"]
+                img['caption']=''
+                parent= child.find_parent('figure')
+                parent2 = child.find_parent("p", class_='image')
 
-                parent = child.find_parent("figure")
                 if parent:
                     figcaption = parent.find("figcaption")
                     if figcaption:
                         figcap = figcaption.find("p")
                         if figcap:
-                            img["caption"] = figcap.get_text("")
-                            print(img["caption"])
+                            img["caption"] = figcap.get_text(strip=True)
+                            print("this is image cpation",img["caption"])
+
+                if parent2:
+                   previous_sibling= parent2.find_previous_sibling()
+                   if previous_sibling:
+                       prev_sib_class=previous_sibling.get('class',[''])[0]
+                       if prev_sib_class=='figcaption':
+                           img['caption']= previous_sibling.get_text(strip=True)
+                           print("this is figure caption", img['caption'])
+
                 if section_data:
                     section_data[-1]["content"] += "{{figure:" + img["id"] + "}} "
                     if "figures" in section_data[-1]:
@@ -130,18 +138,62 @@ def extract_data(elem, book, filename, section_data=[]):
                     temp["tables"] = []
                     temp["code_snippet"] = []
                     temp["equations"] = []
+            
+            elif child.name == "figure" and "table" in child.get("class", []):
+                print("table here from figure tag, table extraction from image")
+                table_image= child.find('img')
+                caption_text = ""
+                table_id = generate_unique_id()
+                table_tag = child.find("table")
+                tabcap = child.find("p", class_="title")
+                if tabcap:
+                    caption_text = tabcap.get_text(strip=True)
+                    print("this is table caption", caption_text)
+                if table_tag:
+                    table_data = parse_table(table_tag)
+                elif table_image:
+                    aws_path = f"{s3_base_url}/{folder_name}{book}/OEBPS/"
+                    image_path = aws_path + table_image["src"]
+                    img_key = image_path.replace(s3_base_url + "/", "")
+                    table_image_path = download_aws_image(img_key, book)
+                    print(table_image_path)
+                    if not table_image_path:
+                        continue
+                    try:
+                        table_data = process_book_page(table_image_path)
+                    except Exception as e:
+                        print("error while extrcating table using bud-ocr", e)
+                        continue
+                    if os.path.exists(table_image_path):
+                        os.remove(table_image_path)
+
+                table = {"id": table_id, "data": table_data, "caption": caption_text}
+                if section_data:
+                    section_data[-1]["content"] += "{{table:" + table["id"] + "}} "
+                    if "tables" in section_data[-1]:
+                        section_data[-1]["tables"].append(table)
+                        # section_data[-1]['tables'] = [table]
+                    else:
+                        section_data[-1]["tables"] = [table]
+                else:
+                    temp["title"] = ""
+                    temp["content"] = "{{table:" + table["id"] + "}} "
+                    temp["tables"] = [table]
+                    temp["figures"] = []
+                    temp["code_snippet"] = []
+                    temp["equations"] = []
+
 
             elif child.name == "table":
                 print("table here")
                 caption_text = ""
-                parent = child.find_parent("figure")
-                if parent:
-                    tabcaption = parent.find("figcaption")
-                    if tabcaption:
-                        tabcap = tabcaption.find("p")
-                        if tabcap:
-                            caption_text = tabcap.get_text(strip=True)
-                            print(caption_text)
+                previous_sibling= child.find_previous_sibling()
+                if previous_sibling:
+                    prev_sib_class= previous_sibling.get('class',[''])[0]
+                    if prev_sib_class=='tcaption':
+                        caption_text=previous_sibling.get_text(strip=True)
+                        print("this is table caption", caption_text)
+
                 table_id = generate_unique_id()
                 table_data = parse_table(child)
                 table = {"id": table_id, "data": table_data, "caption": caption_text}
@@ -160,56 +212,6 @@ def extract_data(elem, book, filename, section_data=[]):
                     temp["code_snippet"] = []
                     temp["equations"] = []
 
-            elif child.name == "div" and (
-                "equationNumbered" in child.get("class", [])
-                or "informalEquation" in child.get("class", [])
-            ):
-                equation_image = child.find("img")
-                equation_Id = generate_unique_id()
-                if equation_image:
-                    aws_path = f"{s3_base_url}/{folder_name}{book}/OEBPS/"
-                    img_url = aws_path + equation_image["src"]
-                    print("This is equation image")
-                    img_key = img_url.replace(s3_base_url + "/", "")
-                    equation_image_path = download_aws_image(img_key, book)
-                    if not equation_image_path:
-                        continue
-                    try:
-                        img = Image.open(equation_image_path)
-                    except Exception as e:
-                        print("from image equation", e)
-                        continue
-                    try:
-                        latex_text = latex_ocr(img)
-                    except Exception as e:
-                        print("error while extracting latex code from image", e)
-                        continue
-                    text_to_speech = latext_to_text_to_speech(latex_text)
-                    eqaution_data = {
-                        "id": equation_Id,
-                        "text": latex_text,
-                        "text_to_speech": text_to_speech,
-                    }
-                    print(equation_image_path)
-                    print("this is equation image")
-                    os.remove(equation_image_path)
-                else:
-                    continue
-                if section_data:
-                    section_data[-1]["content"] += "{{equation:" + equation_Id + "}} "
-                    if "equations" in section_data[-1]:
-                        section_data[-1]["equations"].append(eqaution_data)
-                    else:
-                        section_data[-1]["equations"] = [eqaution_data]
-                else:
-                    temp["title"] = ""
-                    temp["content"] = "{{equation:" + equation_Id + "}} "
-                    temp["tables"] = []
-                    temp["figures"] = []
-                    temp["code_snippet"] = []
-                    temp["equations"] = [eqaution_data]
-
-            # code oreilly publication
             elif child.name == "pre":
                 print("code here")
                 code_tags = child.find_all("code")
@@ -236,6 +238,33 @@ def extract_data(elem, book, filename, section_data=[]):
                     temp["figures"] = []
                     temp["code_snippet"] = [code_data]
                     temp["equations"] = []
+            
+
+            elif child.name == "div" and 'pre' in child.get('class',[]):
+                print("code here from div prev tag")
+                code_tags = child.find_all("p", class_="pindent")
+                code = ""
+                if code_tags:
+                    code = " ".join(
+                        code_tag.get_text(strip=True) for code_tag in code_tags
+                    )
+                code_id = generate_unique_id()
+                code_data = {"id": code_id, "code_snippet": code}
+                if section_data:
+                    section_data[-1]["content"] += "{{code_snippet:" + code_id + "}} "
+                    if "code_snippet" in section_data[-1]:
+                        section_data[-1]["code_snippet"].append(code_data)
+
+                    else:
+                        section_data[-1]["code_snippet"] = [code_data]
+                else:
+                    temp["title"] = ""
+                    temp["content"] = "{{code_snippet:" + code_id + "}} "
+                    temp["tables"] = []
+                    temp["figures"] = []
+                    temp["code_snippet"] = [code_data]
+                    temp["equations"] = []
+
             elif child.contents:
                 section_data = extract_data(
                     child, book, filename, section_data=section_data
@@ -305,7 +334,7 @@ def get_book_data(book):
                     html_content = get_file_object_aws(
                         book, filename, folder_name, bucket_name
                     )
-
+                    print(filename)
                     if html_content:
                         try:
                             json_data = parse_html_to_json(html_content, book, filename)
@@ -341,136 +370,29 @@ def get_book_data(book):
     extracted_books.insert_one(book_data)
 
 
-# def find_figure_tag_in_html(html_content):
-#     soup = BeautifulSoup(html_content, "html.parser")
-#     figure_tags = soup.find_all("figure")
-#     return figure_tags
-
-
-# def get_html_from_epub(epub_path):
-#     book = epub.read_epub(epub_path)
-#     # Iterate through items in the EPUB book
-#     for item in book.get_items():
-#         # Check if the item is of type 'text'
-#         if item.get_type() == ebooklib.ITEM_DOCUMENT:
-#             # Extract the HTML content
-#             html_content = item.get_content().decode("utf-8", "ignore")
-
-#             # Find figure tags in the HTML content
-#             figure_tags = find_figure_tag_in_html(html_content)
-
-#             # If figure tags are found, return the first one and break the loop
-#             if figure_tags:
-#                 return figure_tags[0]
-#     # Return None if no figure tags are found
-#     return None
-
-
-
-def find_figure_tag_in_html(html_content):
-    soup = BeautifulSoup(html_content, 'html.parser')
-    figure_tags = soup.find_all('div', class_="wrap")
-    return figure_tags
-
-def find_image_paragraph_in_html(html_content):
-    soup = BeautifulSoup(html_content, 'html.parser')
-    image_paragraphs = soup.find_all('p', class_='center')
-    return image_paragraphs
-
-def get_html_from_epub(epub_path):
-    book = epub.read_epub(epub_path)
-    figure_found = False
-
-    for item in book.get_items():
-        if item.get_type() == ebooklib.ITEM_DOCUMENT:
-            html_content = item.get_content().decode("utf-8", "ignore")
-            figure_tags = find_figure_tag_in_html(html_content)
-
-            if figure_tags:
-                figure_found = True
-                return "div_wrap"
-
-    # If figure tag is not found in any HTML file, check for p element with class name "image"
-    if not figure_found:
-        for item in book.get_items():
-            if item.get_type() == ebooklib.ITEM_DOCUMENT:
-                html_content = item.get_content().decode("utf-8", "ignore")
-                image_paragraphs = find_image_paragraph_in_html(html_content)
-
-                if image_paragraphs:
-                    return "p_center"
-
-    # Return None if neither figure tags nor p element with class name "image" is found
-    return None
-
-# taking books from publishers collection and checking if it has pattern (figure tag inside any html file)
-# extracted = []
-# not_extracted = []
-# for book in publisher_collection.find():
-#     if (
-#         "publishers" in book
-#         and book["publishers"]
-#         and book["publishers"][0].startswith("Wiley")
-#     ):
-#         if "s3_key" in book:
-#             s3_key = book["s3_key"]
-#             bookname = book["s3_key"].split("/")[-2]
-#             already_extracted = extracted_books.find_one({"book": bookname})
-#             if already_extracted:
-#                 extracted.append(bookname)
-#                 print(f"this {bookname}already extracted")
-#             else:
-#                 print(f"this {bookname} not extracted")
-#                 not_extracted.append(bookname)
-
-# print("total extracted", len(extracted))
-# print("total not extracted", len(not_extracted))
-# f = open("wiley_not_extracted.txt", "w")
-# f.write(str(not_extracted))
-
-# get all books from aws and checking if it has pattern (figure tag inside any html file)
-extracted = []
-books = get_all_books_names(bucket_name, folder_name)
-print(len(books))
-wiley_pcentern_tags = []
-# wiley_without_pcenter_tags = []/
-for book in books:
-    already_extracted = extracted_books.find_one({"book": book})
-    s3_key = f"{folder_name}{book}/{book}.epub"
-    print(s3_key)
-    if not already_extracted:
-        print("e")
-        epub_path = download_epub_from_s3(book, s3_key)
-        if not epub_path:
-            continue
-        try:
-            figure_tag = get_html_from_epub(epub_path)
-        except Exception as e:
-            print("error while identify figure tag", e)
-            continue
-        if figure_tag:
-            if os.path.exists(epub_path):
-                os.remove(epub_path)
-            # print("figure tag found")
-            # book_with_figure_tags.append(book)
-            # get_book_data(book)
+not_s3 = []
+s3 = []
+for book in publisher_collection.find():
+    if (
+        "publishers" in book
+        and book["publishers"]
+        and book["publishers"][0].startswith("Auerbach")
+    ):
+        if "s3_key" in book:
+            s3_key = book["s3_key"]
+            print(s3_key)
+            bookname = book["s3_key"].split("/")[-2]
+            already_extracted = extracted_books.find_one({"book": bookname})
+            if not already_extracted:
+                print("E")
+                # get_book_data(bookname)
+            else:
+                print(f"this {bookname}already extracted")
+            s3.append(bookname)
         else:
-            print("no pattern")
-            wiley_pcentern_tags.append(book)
-            if os.path.exists(epub_path):
-                os.remove(epub_path)
-    else:
-        print('already_extracted')
-        extracted.append(book)
+            not_s3.append(book)
 
+print("not se", len(not_s3))
+print("S3", len(s3))
 
-print("total books", len(books))
-print("total extracted", len(extracted))
-print("total books without p center and image wrap tag", len(wiley_pcentern_tags))
-f = open("wiley_aws_books_without_pce_div_wrap", "w")
-f.write(str(wiley_pcentern_tags))
-# print("total books with out figure tag", len(book_with_figure_tags))
-# f = open("wiley_aws_books_without_figure", "w")
-# f.write(str(books_with_out_figure_tags))
-
-# get_html_from_epub("/home/bud-data-extraction/datapipeline/Books/Oct29-Wiley/9780470317235.epub")
+# get_book_data('Product Release Planning (9781420004113)')
