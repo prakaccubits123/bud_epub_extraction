@@ -325,7 +325,9 @@ for book in publisher_collection.find():
     if (
         "publishers" in book
         and book["publishers"]
-        and book["publishers"][0].startswith("Wrox")
+        and book["publishers"][0].startswith("Wrox") 
+        # Center for Creative Leadership
+        # Center for Cryptologic History, NSA
     ):
         if "s3_key" in book:
             s3_key = book["s3_key"]

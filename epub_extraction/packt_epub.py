@@ -381,32 +381,6 @@ def get_book_data(book):
 
 # taking books from publishers collection and checking if it has pattern (figure tag inside any html file)
 
-
-def find_figure_tag_in_html(html_content):
-    soup = BeautifulSoup(html_content, "html.parser")
-    div_with_figure_class = soup.find_all("figure")
-    return div_with_figure_class
-
-
-def get_html_from_epub(epub_path):
-    book = epub.read_epub(epub_path)
-    # Iterate through items in the EPUB book
-    for item in book.get_items():
-        # Check if the item is of type 'text'
-        if item.get_type() == ebooklib.ITEM_DOCUMENT:
-            # Extract the HTML content
-            html_content = item.get_content().decode("utf-8", "ignore")
-
-            # Find figure tags in the HTML content
-            figure_tags = find_figure_tag_in_html(html_content)
-
-            # If figure tags are found, return the first one and break the loop
-            if figure_tags:
-                return figure_tags[0]
-    # Return None if no figure tags are found
-    return None
-
-
 # taking books from publishers collection and checking if it has pattern (figure tag inside any html file)
 # figure_pattern = []
 # packt_remaining = []
@@ -453,55 +427,79 @@ def get_html_from_epub(epub_path):
 # f = open("packt_remaining_pattern.txt", "w")
 # f.write(str(packt_remaining))
 
-books = [
-    "Books/Oct29-1/Microsoft Power Platform Enterprise Architecture - Second Edition (9781804612637)/9781804612637.epub",
-    "Books/Oct29-1/Generative AI with LangChain (9781835083468)/9781835083468.epub",
-    "Books/Oct29-1/AWS for Solutions Architects - Second Edition (9781803238951)/9781803238951.epub",
-    "Books/Oct29-1/Incident Response in the Age of Cloud (9781800569218)/9781800569218.epub",
-    "Books/Oct29-1/Generative AI with Python and TensorFlow 2 (9781800200883)/9781800200883.epub",
-    "Books/Oct29-1/Flutter Cookbook - Second Edition (9781803245430)/9781803245430.epub",
-    "Books/Oct29-1/C_ 10 and .NET 6 – Modern Cross-Platform Development - Sixth Edition (9781801077361)/9781801077361.epub",
-    "Books/Oct29-1/Full Stack Development with Spring Boot 3 and React - Fourth Edition (9781805122463)/9781805122463.epub",
-    "Books/Oct29-1/Python Machine Learning - Third Edition (9781789955750)/9781789955750.epub",
-    "Books/Oct29-1/Python Real-World Projects (9781803246765)/9781803246765.epub",
-    "Books/Oct29-1/Mastering Blockchain - Fourth Edition (9781803241067)/9781803241067.epub",
-    "Books/Oct29-1/Microservices with Spring Boot 3 and Spring Cloud - Third Edition (9781805128694)/9781805128694.epub",
-    "Books/Oct29-1/iOS 17 Programming for Beginners - Eighth Edition (9781837630561)/9781837630561.epub",
-    "Books/Oct29-1/Terraform Cookbook - Second Edition (9781804616420)/9781804616420.epub",
-    "Books/Oct29-1/Solutions Architect_s Handbook - Second Edition (9781801816618)/9781801816618.epub",
-    "Books/Oct29-1/Mastering Linux Security and Hardening - Third Edition (9781837630516)/9781837630516.epub",
-    "Books/Oct29-1/Docker Deep Dive - Second Edition (9781835081709)/9781835081709.epub",
-    "Books/Oct29-1/Mastering Kubernetes - Fourth Edition (9781804611395)/9781804611395.epub",
-    "Books/Oct29-1/Extreme C (9781789343625)/9781789343625.epub",
-    "Books/Oct29-1/Learning C_ by Developing Games with Unity - Seventh Edition (9781837636877)/9781837636877.epub",
-    "Books/Oct29-1/Learning OpenCV 5 Computer Vision with Python - Fourth Edition (9781803230221)/9781803230221.epub",
-    "Books/Oct29-1/Functional Python Programming - Third Edition (9781803232577)/9781803232577.epub",
-    "Books/Oct29-1/Responsive Web Design with HTML5 and CSS - Fourth Edition (9781803242712)/9781803242712.epub",
-    "Books/Oct29-1/Microservices with Spring Boot and Spring Cloud - Second Edition (9781801072977)/9781801072977.epub",
-    "Books/Oct29-1/9781803237671/9781803237671.epub",
-    "Books/Oct29-1/9781801074308/9781801074308.epub",
-    "Books/Oct29-1/9781800568105/9781800568105.epub",
-    "Books/Oct29-1/The Music Producer_s Ultimate Guide to FL Studio 21 - Second Edition (9781837631650)/9781837631650.epub",
-    "Books/Oct29-1/Building Analytics Teams (9781800203167)/9781800203167.epub",
-    "Books/Oct29-1/9781803239118/9781803239118.epub",
-    "Books/Oct29-1/The Kaggle Book (9781801817479)/9781801817479.epub",
-    "Books/Oct29-1/Blockchain with Hyperledger Fabric - Second Edition (9781839218750)/9781839218750.epub",
-    "Books/Oct29-1/Modern C__ Programming Cookbook - Second Edition (9781800208988)/9781800208988.epub",
-    "Books/Oct29-1/Azure Strategy and Implementation Guide - Third Edition (9781838986681)/9781838986681.epub",
-    "Books/Oct29-1/Machine Learning with PyTorch and Scikit-Learn (9781801819312)/9781801819312.epub",
-    "Books/Oct29-1/Transformers for Natural Language Processing (9781800565791)/9781800565791.epub",
-    "Books/Oct29-1/An Atypical ASP.NET Core 6 Design Patterns Guide - Second Edition (9781803249841)/9781803249841.epub",
-    "Books/Oct29-1/The Kaggle Workbook (9781804611210)/9781804611210.epub",
-    "Books/Oct29-1/Unity 3D Game Development (9781801076142)/9781801076142.epub",
-    "Books/Oct29-1/Microsoft Office 365 and SharePoint Online Cookbook - Second Edition (9781803243177)/9781803243177.epub",
-    "Books/Oct29-1/SAP on Azure Implementation Guide (9781838983987)/9781838983987.epub",
-]
-for num, book in enumerate(books):
-    bookname = book.split("/")[-2]
-    print(num)
-    already_extracted = extracted_books.find_one({"book": bookname})
-    if not already_extracted:
-        get_book_data(bookname)
-        print("E")
+# # get_book_data("AWS for Solutions Architects - Second Edition (9781803238951)")
 
-# get_book_data("AWS for Solutions Architects - Second Edition (9781803238951)")
+
+
+def find_figure_tag_in_html(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    figure_tags = soup.find_all('div', class_="center")
+    return figure_tags
+
+def find_image_paragraph_in_html(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    image_paragraphs = soup.find_all('div', class_='figure')
+    return image_paragraphs
+
+def get_html_from_epub(epub_path):
+    book = epub.read_epub(epub_path)
+    figure_found = False
+
+    for item in book.get_items():
+        if item.get_type() == ebooklib.ITEM_DOCUMENT:
+            html_content = item.get_content().decode("utf-8", "ignore")
+            figure_tags = find_figure_tag_in_html(html_content)
+
+            if figure_tags:
+                figure_found = True
+                return "figure_tag"
+
+    # If figure tag is not found in any HTML file, check for p element with class name "image"
+    if not figure_found:
+        for item in book.get_items():
+            if item.get_type() == ebooklib.ITEM_DOCUMENT:
+                html_content = item.get_content().decode("utf-8", "ignore")
+                image_paragraphs = find_image_paragraph_in_html(html_content)
+
+                if image_paragraphs:
+                    return "p_image"
+
+    # Return None if neither figure tags nor p element with class name "image" is found
+    return None
+
+
+packt=[]
+extracted=[]
+for book in publisher_collection.find():
+    if (
+        "publishers" in book
+        and book["publishers"]
+        and book["publishers"][0].startswith("Packt")
+    ):
+        if "s3_key" in book:
+            s3_key = book["s3_key"]
+            bookname = book["s3_key"].split("/")[-2]
+            already_extracted = extracted_books.find_one({"book": bookname})
+            if not already_extracted:
+                epub_path = download_epub_from_s3(bookname, s3_key)
+                if not epub_path:
+                    continue
+                pattern = get_html_from_epub(epub_path)
+                if pattern:
+                    if os.path.exists(epub_path):
+                        os.remove(epub_path)
+                    print("figure tag found")
+                    packt.append(bookname)
+                    # get_book_data(bookname, pattern)
+                else:
+                    print("no pattern found")                  
+                    if os.path.exists(epub_path):
+                        os.remove(epub_path)
+            else:
+                print(f"this {bookname}already extracted")
+                extracted.append(bookname)
+
+print("total extracted books", len(extracted))
+print("total packt books with figure pattern",len(packt))
+f=open("pearson_div_with_image_tag.txt",'w')
+f.write(str(packt))

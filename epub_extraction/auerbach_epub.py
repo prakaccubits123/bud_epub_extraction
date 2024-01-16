@@ -385,7 +385,7 @@ for book in publisher_collection.find():
             already_extracted = extracted_books.find_one({"book": bookname})
             if not already_extracted:
                 print("E")
-                # get_book_data(bookname)
+                get_book_data(bookname)
             else:
                 print(f"this {bookname}already extracted")
             s3.append(bookname)

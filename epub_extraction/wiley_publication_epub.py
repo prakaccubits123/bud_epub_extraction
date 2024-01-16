@@ -369,12 +369,12 @@ def get_book_data(book):
 
 def find_figure_tag_in_html(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
-    figure_tags = soup.find_all('div', class_="wrap")
+    figure_tags = soup.find_all('div', class_="figure")
     return figure_tags
 
 def find_image_paragraph_in_html(html_content):
     soup = BeautifulSoup(html_content, 'html.parser')
-    image_paragraphs = soup.find_all('p', class_='center')
+    image_paragraphs = soup.find_all('div', class_='center')
     return image_paragraphs
 
 def get_html_from_epub(epub_path):
@@ -404,8 +404,8 @@ def get_html_from_epub(epub_path):
     return None
 
 # taking books from publishers collection and checking if it has pattern (figure tag inside any html file)
-# extracted = []
-# not_extracted = []
+extracted = []
+not_extracted = []
 # for book in publisher_collection.find():
 #     if (
 #         "publishers" in book
@@ -416,59 +416,70 @@ def get_html_from_epub(epub_path):
 #             s3_key = book["s3_key"]
 #             bookname = book["s3_key"].split("/")[-2]
 #             already_extracted = extracted_books.find_one({"book": bookname})
-#             if already_extracted:
-#                 extracted.append(bookname)
-#                 print(f"this {bookname}already extracted")
+#             if not already_extracted:
+#                not_extracted.append(bookname)
 #             else:
-#                 print(f"this {bookname} not extracted")
-#                 not_extracted.append(bookname)
+#                 extracted.append(book)
+#                 print(f"this {book['title']} already extracted")
 
-# print("total extracted", len(extracted))
-# print("total not extracted", len(not_extracted))
-# f = open("wiley_not_extracted.txt", "w")
-# f.write(str(not_extracted))
-
-# get all books from aws and checking if it has pattern (figure tag inside any html file)
-extracted = []
 books = get_all_books_names(bucket_name, folder_name)
 print(len(books))
-wiley_pcentern_tags = []
-# wiley_without_pcenter_tags = []/
 for book in books:
     already_extracted = extracted_books.find_one({"book": book})
-    s3_key = f"{folder_name}{book}/{book}.epub"
-    print(s3_key)
     if not already_extracted:
-        print("e")
-        epub_path = download_epub_from_s3(book, s3_key)
-        if not epub_path:
-            continue
-        try:
-            figure_tag = get_html_from_epub(epub_path)
-        except Exception as e:
-            print("error while identify figure tag", e)
-            continue
-        if figure_tag:
-            if os.path.exists(epub_path):
-                os.remove(epub_path)
-            # print("figure tag found")
-            # book_with_figure_tags.append(book)
-            # get_book_data(book)
-        else:
-            print("no pattern")
-            wiley_pcentern_tags.append(book)
-            if os.path.exists(epub_path):
-                os.remove(epub_path)
+        not_extracted.append(book)
     else:
-        print('already_extracted')
         extracted.append(book)
+        print(f"this {book} already extracted")
 
-
-print("total books", len(books))
 print("total extracted", len(extracted))
-print("total books without p center and image wrap tag", len(wiley_pcentern_tags))
-f = open("wiley_aws_books_without_pce_div_wrap", "w")
-f.write(str(wiley_pcentern_tags))
+print("total not extracted", len(not_extracted))
+f = open("wiley2_not_extracted.txt", "w")
+f.write(str(not_extracted))
+
+
+
+# get all books from aws and checking if it has pattern (figure tag inside any html file)
+# extracted = []
+# books = get_all_books_names(bucket_name, folder_name)
+# print(len(books))
+# wiley_pcentern_tags = []
+# # wiley_without_pcenter_tags = []/
+# for book in books:
+#     already_extracted = extracted_books.find_one({"book": book})
+#     s3_key = f"{folder_name}{book}/{book}.epub"
+#     print(s3_key)
+#     if not already_extracted:
+#         print("e")
+#         epub_path = download_epub_from_s3(book, s3_key)
+#         if not epub_path:
+#             continue
+#         try:
+#             figure_tag = get_html_from_epub(epub_path)
+#         except Exception as e:
+#             print("error while identify figure tag", e)
+#             continue
+#         if figure_tag:
+#             if os.path.exists(epub_path):
+#                 os.remove(epub_path)
+#             # print("figure tag found")
+#             # book_with_figure_tags.append(book)
+#             # get_book_data(book)
+#         else:
+#             print("no pattern")
+#             wiley_pcentern_tags.append(book)
+#             if os.path.exists(epub_path):
+#                 os.remove(epub_path)
+#     else:
+#         print('already_extracted')
+#         extracted.append(book)
+
+
+# print("total books", len(books))
+# print("total extracted", len(extracted))
+# print("total books without p center and image wrap tag", len(wiley_pcentern_tags))
+# f = open("wiley_aws_books_without_pce_div_wrap", "w")
+# f.write(str(wiley_pcentern_tags))
 # print("total books with out figure tag", len(book_with_figure_tags))
 # f = open("wiley_aws_books_without_figure", "w")
 # f.write(str(books_with_out_figure_tags))
